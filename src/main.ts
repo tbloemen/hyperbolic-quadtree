@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/Addons.js";
-import { initPoints } from "./points";
+import { initPoints, drawGeodesic } from "./points";
 
 const frustrumSize = 10;
 
@@ -29,14 +29,20 @@ controls.enablePan = true;
 
 // Add geometry to the scene
 const points = initPoints(100, -4, 4, 0.1, 4);
-console.log(points);
 const geometry = new THREE.BufferGeometry().setFromPoints(points);
 const material = new THREE.PointsMaterial({
   color: 0xffffff,
   size: 5.1,
+  map: new THREE.TextureLoader().load("/circle.png"),
 });
 const pointCloud = new THREE.Points(geometry, material);
 scene.add(pointCloud);
+
+// draw geodesic between two random points
+const p1 = points[0];
+const p2 = points[1];
+const geodesic = drawGeodesic(p1, p2);
+scene.add(geodesic);
 
 const axesHelper = new THREE.AxesHelper(5);
 scene.add(axesHelper);
