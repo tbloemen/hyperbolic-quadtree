@@ -44,6 +44,11 @@ const p2 = points[1];
 const geodesic = drawGeodesic(p1, p2);
 scene.add(geodesic);
 
+// draw bounding box around points
+const boundingBox = new THREE.Box3().setFromPoints(points);
+const boxHelper = new THREE.Box3Helper(boundingBox, 0xffffff);
+scene.add(boxHelper);
+
 const axesHelper = new THREE.AxesHelper(5);
 scene.add(axesHelper);
 
