@@ -8,8 +8,8 @@ const aspect = window.innerWidth / window.innerHeight;
 const camera = new THREE.OrthographicCamera(
   (-frustrumSize * aspect) / 2,
   (frustrumSize * aspect) / 2,
-  frustrumSize / 2,
-  -frustrumSize / 2,
+  frustrumSize,
+  -0.1,
 );
 
 const scene = new THREE.Scene();
