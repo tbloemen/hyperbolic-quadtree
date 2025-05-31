@@ -1,8 +1,12 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/Addons.js";
-import { initPoints, drawGeodesic } from "./points";
+import { initPoints, drawCyl } from "./points";
+import { HQuadTree } from "./quadtree";
+import { black, white } from "./colors";
 
 const frustrumSize = 10;
+const showAxes = true;
+const showCone = true;
 
 const aspect = window.innerWidth / window.innerHeight;
 const camera = new THREE.OrthographicCamera(
@@ -13,8 +17,8 @@ const camera = new THREE.OrthographicCamera(
 );
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color().setHex(0x202020);
-camera.position.set(0, 0, 5);
+scene.background = new THREE.Color().setHex(black);
+camera.position.set(0, 0, 500);
 
 const renderer = new THREE.WebGLRenderer();
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -27,30 +31,31 @@ controls.enableRotate = false;
 controls.enableZoom = true;
 controls.enablePan = true;
 
-// Add geometry to the scene
-const points = initPoints(100, -4, 4, 0.1, 4);
+const points = initPoints(3, -10, 10, 0.1, 8);
+
+// add hyperbolic quadtree
+const quadtree = new HQuadTree(points);
+quadtree.render(scene, 0.3);
+
+// Add point cloud to the scene
 const geometry = new THREE.BufferGeometry().setFromPoints(points);
 const material = new THREE.PointsMaterial({
-  color: 0xffffff,
-  size: 5.1,
+  color: white,
+  size: 4,
   map: new THREE.TextureLoader().load("/circle.png"),
 });
 const pointCloud = new THREE.Points(geometry, material);
 scene.add(pointCloud);
 
-// draw geodesic between two random points
-const p1 = points[0];
-const p2 = points[1];
-const geodesic = drawGeodesic(p1, p2);
-scene.add(geodesic);
+if (showAxes) {
+  const axesHelper = new THREE.AxesHelper(5);
+  scene.add(axesHelper);
+}
 
-// draw bounding box around points
-const boundingBox = new THREE.Box3().setFromPoints(points);
-const boxHelper = new THREE.Box3Helper(boundingBox, 0xffffff);
-scene.add(boxHelper);
-
-const axesHelper = new THREE.AxesHelper(5);
-scene.add(axesHelper);
+if (showCone) {
+  const cone = drawCyl(points[0]);
+  scene.add(cone);
+}
 
 window.addEventListener("resize", onWindowResize, false);
 function onWindowResize() {
