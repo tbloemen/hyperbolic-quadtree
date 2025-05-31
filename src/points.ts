@@ -1,4 +1,6 @@
 import * as THREE from "three";
+import { white } from "./colors";
+
 export function initPoints(
   n: number,
   xMin: number,
@@ -52,4 +54,19 @@ export function drawGeodesic(
 
   const geometry = new THREE.BufferGeometry().setFromPoints(points);
   return new THREE.Line(geometry, material);
+}
+
+export function drawCyl(p: THREE.Vector3, color: number = white): THREE.Mesh {
+  const scalar = 500;
+  const geometry = new THREE.ConeGeometry(scalar, scalar);
+  geometry.translate(0, -scalar / 2, 0);
+  const material = new THREE.MeshBasicMaterial({
+    color: color,
+    transparent: true,
+    opacity: 0.5,
+  });
+  const cone = new THREE.Mesh(geometry, material);
+  cone.rotation.x = Math.PI;
+  cone.position.set(p.x, 0, 0);
+  return cone;
 }
