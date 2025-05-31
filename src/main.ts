@@ -31,7 +31,13 @@ controls.enableRotate = false;
 controls.enableZoom = true;
 controls.enablePan = true;
 
-const points = initPoints(3, -10, 10, 0.1, 8);
+const points = initPoints(
+  3,
+  -(frustrumSize / 2 - 0.5),
+  frustrumSize / 2 - 0.5,
+  0.01,
+  frustrumSize - 0.5,
+);
 
 // add hyperbolic quadtree
 const quadtree = new HQuadTree(points);
