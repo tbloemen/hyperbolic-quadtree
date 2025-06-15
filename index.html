@@ -4,14 +4,50 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <link rel="stylesheet" href="/src/style.css" />
-    <meta
-      name="viewport"
-      content="width=device-width, user-scalable=no, initial-scale=1.0"
-    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Hyperbolic Quadtree</title>
   </head>
-  <body>
-    <div id="app"></div>
+  <body class="bg-gray-100 text-gray-800 min-h-screen flex flex-col">
+    <!-- Header -->
+    <header class="bg-gray-900 text-white py-4 text-center shadow-md">
+      <h1 class="text-2xl font-bold">Hyperbolic Quadtree Viewer</h1>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex flex-col items-center p-6 flex-1 space-y-6">
+      <!-- Description -->
+      <section class="max-w-3xl text-center">
+        <p class="text-lg">
+          This application visualizes a hyperbolic quadtree. Use your mouse to
+          pan, zoom, and explore the structure.
+        </p>
+      </section>
+
+      <!-- Canvas Container -->
+      <div
+        id="canvas-container"
+        class="w-full max-w-5xl aspect-video bg-white border border-gray-300 relative"
+      >
+        <div id="app" class="w-full h-full"></div>
+      </div>
+
+      <!-- Controls -->
+      <section id="controls" class="flex gap-4">
+        <button
+          id="resetBtn"
+          class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
+        >
+          Reset View
+        </button>
+        <button
+          id="toggleBtn"
+          class="px-4 py-2 bg-gray-700 text-white rounded hover:bg-gray-800 transition"
+        >
+          Toggle Mode
+        </button>
+      </section>
+    </main>
+
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

@@ -20,10 +20,12 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color().setHex(black);
 camera.position.set(0, 0, 500);
 
-const renderer = new THREE.WebGLRenderer();
-renderer.setSize(window.innerWidth, window.innerHeight);
+const container = document.getElementById("app")!;
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(container.clientWidth, container.clientHeight);
+renderer.setPixelRatio(window.devicePixelRatio);
+container.appendChild(renderer.domElement);
 renderer.setAnimationLoop(animate);
-document.body.appendChild(renderer.domElement);
 
 // Add orbit controls
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -65,11 +67,11 @@ if (showCone) {
 
 window.addEventListener("resize", onWindowResize, false);
 function onWindowResize() {
-  const newAspect = window.innerWidth / window.innerHeight;
+  const newAspect = container.clientWidth / container.clientHeight;
   camera.left = (-frustrumSize * newAspect) / 2;
   camera.right = (frustrumSize * newAspect) / 2;
   camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setSize(container.clientWidth, container.clientHeight);
   render();
 }
 
