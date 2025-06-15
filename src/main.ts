@@ -6,7 +6,7 @@ import { black, white } from "./colors";
 
 const frustrumSize = 10;
 const showAxes = true;
-const showCone = true;
+const showCone = false;
 
 const aspect = window.innerWidth / window.innerHeight;
 const camera = new THREE.OrthographicCamera(
@@ -32,10 +32,10 @@ controls.enableZoom = true;
 controls.enablePan = true;
 
 const points = initPoints(
-  3,
+  300,
   -(frustrumSize / 2 - 0.5),
   frustrumSize / 2 - 0.5,
-  0.01,
+  0.1,
   frustrumSize - 0.5,
 );
 
