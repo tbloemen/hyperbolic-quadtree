@@ -40,7 +40,7 @@ const showAxes = true;
 let showSteiner = true;
 let mode = InteractMode.Add;
 let myClosestPoint: THREE.Vector3;
-
+let highlightMesh: THREE.Mesh | null = null;
 let points: THREE.Vector3[] = [];
 let quadtree: DynamicHQuadTree;
 let cone: THREE.Mesh;
@@ -155,7 +155,31 @@ function closestPoint(event: MouseEvent) {
   }
   console.log("Minimal Distance:", minDistance);
   console.log("selectedPoint:", selectedPoint);
-  if (selectedPoint) myClosestPoint = selectedPoint;
+  if (selectedPoint) {
+    myClosestPoint = selectedPoint;
+    highlightClosestPoint();
+    const text = document.getElementById("closestText");
+    if (text) text.textContent = `Closest point: ${minDistance}`;
+  }
+}
+
+function highlightClosestPoint() {
+  if (!myClosestPoint) return;
+
+  // Remove existing highlight
+  if (highlightMesh) {
+    scene.remove(highlightMesh);
+    highlightMesh.geometry.dispose();
+    (highlightMesh.material as THREE.Material).dispose();
+    highlightMesh = null;
+  }
+
+  // Create a small red sphere
+  const geometry = new THREE.SphereGeometry(0.1, 16, 16);
+  const material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+  highlightMesh = new THREE.Mesh(geometry, material);
+  highlightMesh.position.copy(myClosestPoint);
+  scene.add(highlightMesh);
 }
 
 function clickCoordinates(event: MouseEvent): THREE.Vector3 {
