@@ -88,6 +88,7 @@ class SteinerPoint {
   point: THREE.Vector3;
   connected_points: THREE.Vector3[];
   closest_point: THREE.Vector3 | null = null;
+  geodesics: THREE.Line[] = [];
 
   constructor(cell: THREE.Box3, points: THREE.Vector3[]) {
     this.connected_points = points;
@@ -99,6 +100,8 @@ class SteinerPoint {
 
     var minDistance = Number.MAX_SAFE_INTEGER;
     for (const point of points) {
+      const line = drawGeodesic(this.point, point);
+      this.geodesics.push(line);
       const distance = geodesic(this.point, point);
       if (distance < minDistance) {
         this.closest_point = point;
@@ -110,6 +113,8 @@ class SteinerPoint {
   insert(p: THREE.Vector3): boolean {
     if (!this.intersectsCyl(p.x)) return false;
     this.connected_points.push(p);
+    const line = drawGeodesic(this.point, p);
+    this.geodesics.push(line);
     if (!this.closest_point) {
       this.closest_point = p;
     } else {
@@ -118,6 +123,16 @@ class SteinerPoint {
       }
     }
     return true;
+  }
+
+  clear(scene: THREE.Scene) {
+    this.connected_points = [];
+    this.closest_point = null;
+    for (const geodesic of this.geodesics) {
+      scene.remove(geodesic);
+    }
+
+    this.geodesics = [];
   }
 
   intersectsCyl(x0: number): boolean {
@@ -130,9 +145,8 @@ class SteinerPoint {
 
   render(scene: THREE.Scene) {
     // if (this.connected_points.length == 1) return;
-    for (const point of this.connected_points) {
-      const line = drawGeodesic(this.point, point);
-      scene.add(line);
+    for (const geodesic of this.geodesics) {
+      scene.add(geodesic);
     }
   }
 }
@@ -268,6 +282,7 @@ class HQuadTree {
       scene.remove(this.boxHelper);
       this.boxHelper = undefined;
     }
+    this.steinerPoint.clear(scene);
 
     if (recursively) {
       for (const child of this.children) {
@@ -292,7 +307,6 @@ export class DynamicHQuadTree {
   insert(p: THREE.Vector3): void {
     if (!this.root.insert(p)) {
       var allPoints = this.root.allPoints();
-      console.log(allPoints);
       allPoints.push(p);
       this.root.removeFromScene(this.scene, true);
       this.root = new HQuadTree(this.defineRootHCell(allPoints), null);
@@ -348,17 +362,16 @@ export class DynamicHQuadTree {
     // for consecutive points p1, p2
     // find the most constrained cell that contains both p1 and p2
     const allTrees = this.root.allQuadtreesWithPoints();
-    // console.log(allTrees);
+    for (const tree of allTrees) {
+      tree.steinerPoint.clear(this.scene);
+    }
     for (var i = 0; i < allTrees.length - 1; i++) {
       const tree1 = allTrees[i];
       const tree2 = allTrees[i + 1];
       const p1 = tree1.point;
       const p2 = tree2.point;
       if (!p1 || !p2) return;
-      console.log(p1, p2);
-      console.log(tree1.cell.level, tree2.cell.level);
       const c = lowestCommonTree(tree1, p1, p2);
-      console.log(c.cell.level);
       // Fix diameter ratio to be 1, so 1 split is enough
       const child_e = c.children;
       for (const child of child_e) {
