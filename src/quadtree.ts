@@ -223,6 +223,34 @@ class HQuadTree {
     return result;
   }
 
+  query(p: THREE.Vector3): HQuadTree | null {
+    if (
+      !this.cell.box.containsPoint(p) ||
+      (this.children.length == 0 && !this.point)
+    )
+      return null;
+    for (const child of this.children) {
+      const tree = child.query(p);
+      if (tree) return tree;
+    }
+    return this;
+  }
+
+  query_list(p: THREE.Vector3): HQuadTree[] {
+    if (
+      !this.cell.box.containsPoint(p) ||
+      (this.children.length == 0 && !this.point)
+    )
+      return [];
+    let result: HQuadTree[] = [];
+    for (const child of this.children) {
+      const subtrees = child.query_list(p);
+      result = result.concat(subtrees);
+    }
+    result.push(this);
+    return result;
+  }
+
   subdivide(): void {
     const subCells = this.cell.split();
     this.children = subCells.map((c) => new HQuadTree(c, this));
@@ -233,7 +261,12 @@ class HQuadTree {
     }
   }
 
-  render(scene: THREE.Scene, rootLevel: number, opacity: number) {
+  render(
+    scene: THREE.Scene,
+    rootLevel: number,
+    showSteiner: boolean,
+    opacity: number,
+  ) {
     const colorIndex = (rootLevel - this.cell.level) % colors.length;
     const color = colors[colorIndex];
     if (this.children.length === 0) {
@@ -266,10 +299,10 @@ class HQuadTree {
       this.removeFromScene(scene);
     }
 
-    this.steinerPoint.render(scene);
+    if (showSteiner) this.steinerPoint.render(scene);
 
     for (const child of this.children) {
-      child.render(scene, rootLevel, opacity);
+      child.render(scene, rootLevel, showSteiner, opacity);
     }
   }
 
@@ -293,7 +326,7 @@ class HQuadTree {
 }
 
 export class DynamicHQuadTree {
-  private root: HQuadTree;
+  root: HQuadTree;
   private scene: THREE.Scene;
   constructor(points: THREE.Vector3[], scene: THREE.Scene) {
     this.scene = scene;
@@ -318,6 +351,70 @@ export class DynamicHQuadTree {
 
   delete(p: THREE.Vector3): boolean {
     return this.root.delete(p);
+  }
+
+  clear() {
+    this.root.removeFromScene(this.scene, true);
+  }
+
+  distance(p1: THREE.Vector3, p2: THREE.Vector3): number {
+    const tree1 = this.root.query(p1);
+    const tree2 = this.root.query(p2);
+    if (!tree1 || !tree2 || !tree1.point || !tree2.point) return -1;
+    let minDistance = Number.MAX_SAFE_INTEGER;
+    minDistance = this.dfs(
+      tree1,
+      tree2,
+      [],
+      geodesic(p1, tree1.point) + geodesic(p2, tree2.point),
+    );
+    if (minDistance == Number.MAX_SAFE_INTEGER) return -1;
+    return minDistance;
+  }
+
+  dfs(
+    source: HQuadTree,
+    target: HQuadTree,
+    visited: THREE.Vector3[],
+    distance: number,
+  ): number {
+    if (!source.point) return -1;
+    const candidates = source.steinerPoint.connected_points;
+    let minDistance = Number.MAX_SAFE_INTEGER;
+    for (const candidate of candidates) {
+      if (visited.includes(candidate) || candidate === source.point) {
+        continue;
+      }
+      distance += geodesic(source.point, source.steinerPoint.point);
+      if (candidate === target.point) {
+        console.log("Target was reached");
+        return distance + geodesic(source.steinerPoint.point, target.point);
+      }
+      // Recursion
+      const newSource = this.root.query(candidate);
+      let newDistance = -1;
+      let visitedCopy = visited.slice();
+      visited.push(candidate);
+      if (newSource && newSource.point)
+        newDistance = this.dfs(
+          newSource,
+          target,
+          visitedCopy,
+          distance + geodesic(source.steinerPoint.point, newSource.point),
+        );
+      if (newDistance === -1) {
+        continue;
+      }
+      if (newDistance < minDistance) {
+        minDistance = newDistance;
+      }
+    }
+    if (minDistance != Number.MAX_SAFE_INTEGER) return minDistance;
+    return -1;
+  }
+
+  allTreesWithPoint(p: THREE.Vector3) {
+    return this.root.query_list(p);
   }
 
   private defineRootHCell(points: THREE.Vector3[]): HCell {
@@ -354,8 +451,8 @@ export class DynamicHQuadTree {
     return new HCell(box, level);
   }
 
-  render(opacity: number = 0.5) {
-    this.root.render(this.scene, this.root.cell.level, opacity);
+  render(showSteiner: boolean, opacity: number = 0.5) {
+    this.root.render(this.scene, this.root.cell.level, showSteiner, opacity);
   }
 
   renderSteiner() {
@@ -406,6 +503,6 @@ function lowestCommonTree(
 }
 
 function isApprox(p1: THREE.Vector3, p2: THREE.Vector3): boolean {
-  const tol = 1e-6;
-  return Math.abs(p1.distanceTo(p2)) <= tol;
+  const tol = 1e-2;
+  return p1.distanceTo(p2) <= tol;
 }

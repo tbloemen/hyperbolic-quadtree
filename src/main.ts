@@ -1,13 +1,10 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/Addons.js";
-import { initPoints, drawCyl } from "./points";
+import { initPoints, drawCyl, geodesic } from "./points";
 import { DynamicHQuadTree } from "./quadtree";
 import { black, white } from "./colors";
 
 const frustrumSize = 10;
-const showAxes = true;
-const showCone = false;
-
 const container = document.getElementById("app")!;
 const aspect = container.clientWidth / container.clientHeight;
 const camera = new THREE.OrthographicCamera(
@@ -33,8 +30,20 @@ controls.enableRotate = false;
 controls.enableZoom = true;
 controls.enablePan = true;
 
+enum InteractMode {
+  Add,
+  Cone,
+  ClosestPoint,
+}
+
+const showAxes = true;
+let showSteiner = true;
+let mode = InteractMode.Add;
+let myClosestPoint: THREE.Vector3;
+
 let points: THREE.Vector3[] = [];
 let quadtree: DynamicHQuadTree;
+let cone: THREE.Mesh;
 let pointCloud: THREE.Points;
 let geometry: THREE.BufferGeometry;
 
@@ -58,8 +67,9 @@ function resetPoints() {
 
   // add hyperbolic quadtree
   quadtree = new DynamicHQuadTree(points, scene);
+  if (Number.isNaN(quadtree.root.cell.level)) resetPoints();
   quadtree.renderSteiner();
-  quadtree.render();
+  quadtree.render(showSteiner);
 
   // Add point cloud to the scene
   var geometry = new THREE.BufferGeometry().setFromPoints(points);
@@ -71,15 +81,84 @@ function resetPoints() {
     scene.add(axesHelper);
   }
 
-  if (showCone) {
-    const cone = drawCyl(points[0]);
-    scene.add(cone);
-  }
-
   render();
 }
 
 function onClick(event: MouseEvent) {
+  switch (mode) {
+    case InteractMode.Add:
+      addPoint(event);
+      break;
+    case InteractMode.Cone:
+      showCone(event);
+      break;
+    case InteractMode.ClosestPoint:
+      closestPoint(event);
+      break;
+    default:
+      throw new Error("Should be unreachable");
+  }
+}
+
+function addPoint(event: MouseEvent) {
+  const vector = clickCoordinates(event);
+  if (vector.y <= 0) return;
+
+  // Insert into quadtree
+  quadtree.insert(vector);
+  quadtree.renderSteiner();
+  quadtree.render(showSteiner);
+  points.push(vector);
+  scene.remove(pointCloud);
+
+  const newGeometry = new THREE.BufferGeometry().setFromPoints(points);
+  const newPointCloud = new THREE.Points(newGeometry, material);
+  scene.add(newPointCloud);
+
+  pointCloud = newPointCloud;
+  geometry = newGeometry;
+  render();
+}
+
+function showCone(event: MouseEvent) {
+  const vector = clickCoordinates(event);
+  let closestPoint = null;
+  for (const point of points) {
+    const distance = vector.distanceTo(point);
+    console.log(distance);
+    if (distance <= 0.4) {
+      closestPoint = point;
+      break;
+    }
+  }
+  console.log(closestPoint);
+  if (cone) scene.remove(cone);
+  if (closestPoint) {
+    cone = drawCyl(closestPoint);
+    scene.add(cone);
+  }
+}
+
+function closestPoint(event: MouseEvent) {
+  const vector = clickCoordinates(event);
+  const trees = quadtree.allTreesWithPoint(vector);
+  let minDistance = Number.MAX_SAFE_INTEGER;
+  let selectedPoint = null;
+  for (const tree of trees) {
+    const closest_steiner = tree.steinerPoint.closest_point;
+    if (!closest_steiner) continue;
+    const distance = geodesic(vector, closest_steiner);
+    if (distance < minDistance) {
+      minDistance = distance;
+      selectedPoint = tree.point;
+    }
+  }
+  console.log("Minimal Distance:", minDistance);
+  console.log("selectedPoint:", selectedPoint);
+  if (selectedPoint) myClosestPoint = selectedPoint;
+}
+
+function clickCoordinates(event: MouseEvent): THREE.Vector3 {
   const rect = renderer.domElement.getBoundingClientRect();
 
   // Convert mouse click to normalized device coordinates (-1 to +1)
@@ -92,22 +171,29 @@ function onClick(event: MouseEvent) {
   const vector = new THREE.Vector3(mouse.x, mouse.y, 0);
   vector.unproject(camera);
   vector.z = 0;
+  return vector;
+}
 
-  if (vector.y <= 0) return;
+function toggleMode() {
+  console.log("Toggled!");
+  const modeValues = Object.values(InteractMode).filter(
+    (v) => typeof v === "number",
+  );
+  const maxValue = Math.max(...modeValues);
+  const nextMode = mode + 1 > maxValue ? 0 : mode + 1;
+  mode = nextMode;
+  const modeButton = document.getElementById("modeBtn");
+  if (modeButton) modeButton.textContent = `Toggle Mode: ${InteractMode[mode]}`;
+}
 
-  // Insert into quadtree
-  quadtree.insert(vector);
-  quadtree.renderSteiner();
-  quadtree.render();
-  points.push(vector);
-  scene.remove(pointCloud);
-
-  const newGeometry = new THREE.BufferGeometry().setFromPoints(points);
-  const newPointCloud = new THREE.Points(newGeometry, material);
-  scene.add(newPointCloud);
-
-  pointCloud = newPointCloud;
-  geometry = newGeometry;
+function toggleSteiner() {
+  showSteiner = !showSteiner;
+  if (!showSteiner) {
+    quadtree.clear();
+  } else {
+    quadtree.renderSteiner();
+  }
+  quadtree.render(showSteiner);
   render();
 }
 
@@ -134,5 +220,11 @@ window.addEventListener("click", onClick);
 
 const resetButton = document.getElementById("resetBtn");
 resetButton?.addEventListener("click", resetPoints);
+
+const modeButton = document.getElementById("modeBtn");
+modeButton?.addEventListener("click", toggleMode);
+
+const showSteinerButton = document.getElementById("showSteinerBtn");
+showSteinerButton?.addEventListener("click", toggleSteiner);
 
 resetPoints();
