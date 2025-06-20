@@ -29,7 +29,7 @@ export function drawGeodesic(
   p1: THREE.Vector3,
   p2: THREE.Vector3,
   segments: number = 64,
-  color: number = 0xffffff,
+  color: number = white,
 ) {
   const material = new THREE.LineBasicMaterial({ color });
   // vertical line case
