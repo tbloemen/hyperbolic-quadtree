@@ -16,10 +16,10 @@ const camera = new THREE.OrthographicCamera(
   frustrumSize,
   -0.1,
 );
+camera.position.set(0, 0, 500);
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color().setHex(black);
-camera.position.set(0, 0, 500);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(container.clientWidth, container.clientHeight);
@@ -33,49 +33,51 @@ controls.enableRotate = false;
 controls.enableZoom = true;
 controls.enablePan = true;
 
-const points = initPoints(
-  3,
-  -(frustrumSize / 2 - 0.5),
-  frustrumSize / 2 - 0.5,
-  0.1,
-  frustrumSize - 0.5,
-);
+let points: THREE.Vector3[] = [];
+let quadtree: DynamicHQuadTree;
+let pointCloud: THREE.Points;
+let geometry: THREE.BufferGeometry;
 
-// add hyperbolic quadtree
-const quadtree = new DynamicHQuadTree(points, scene);
-quadtree.render(scene);
-
-// Add point cloud to the scene
-var geometry = new THREE.BufferGeometry().setFromPoints(points);
 const material = new THREE.PointsMaterial({
   color: white,
   size: 4,
   map: new THREE.TextureLoader().load("/circle.png"),
 });
-var pointCloud = new THREE.Points(geometry, material);
-scene.add(pointCloud);
 
-if (showAxes) {
-  const axesHelper = new THREE.AxesHelper(5);
-  scene.add(axesHelper);
-}
+function resetPoints() {
+  scene.clear();
+  scene.background = new THREE.Color().setHex(black);
 
-if (showCone) {
-  const cone = drawCyl(points[0]);
-  scene.add(cone);
-}
+  points = initPoints(
+    2,
+    -(frustrumSize / 2 - 0.5),
+    frustrumSize / 2 - 0.5,
+    0.1,
+    frustrumSize - 0.5,
+  );
 
-window.addEventListener("resize", onWindowResize);
-function onWindowResize() {
-  const newAspect = container.clientWidth / container.clientHeight;
-  camera.left = (-frustrumSize * newAspect) / 2;
-  camera.right = (frustrumSize * newAspect) / 2;
-  camera.updateProjectionMatrix();
-  renderer.setSize(container.clientWidth, container.clientHeight);
+  // add hyperbolic quadtree
+  quadtree = new DynamicHQuadTree(points, scene);
+  quadtree.renderSteiner();
+  quadtree.render();
+
+  // Add point cloud to the scene
+  var geometry = new THREE.BufferGeometry().setFromPoints(points);
+  var pointCloud = new THREE.Points(geometry, material);
+  scene.add(pointCloud);
+
+  if (showAxes) {
+    const axesHelper = new THREE.AxesHelper(5);
+    scene.add(axesHelper);
+  }
+
+  if (showCone) {
+    const cone = drawCyl(points[0]);
+    scene.add(cone);
+  }
+
   render();
 }
-
-window.addEventListener("click", onClick);
 
 function onClick(event: MouseEvent) {
   const rect = renderer.domElement.getBoundingClientRect();
@@ -95,7 +97,8 @@ function onClick(event: MouseEvent) {
 
   // Insert into quadtree
   quadtree.insert(vector);
-  quadtree.render(scene);
+  quadtree.renderSteiner();
+  quadtree.render();
   points.push(vector);
   scene.remove(pointCloud);
 
@@ -108,6 +111,15 @@ function onClick(event: MouseEvent) {
   render();
 }
 
+function onWindowResize() {
+  const newAspect = container.clientWidth / container.clientHeight;
+  camera.left = (-frustrumSize * newAspect) / 2;
+  camera.right = (frustrumSize * newAspect) / 2;
+  camera.updateProjectionMatrix();
+  renderer.setSize(container.clientWidth, container.clientHeight);
+  render();
+}
+
 function animate() {
   controls.update();
   render();
@@ -116,3 +128,11 @@ function animate() {
 function render() {
   renderer.render(scene, camera);
 }
+
+window.addEventListener("resize", onWindowResize);
+window.addEventListener("click", onClick);
+
+const resetButton = document.getElementById("resetBtn");
+resetButton?.addEventListener("click", resetPoints);
+
+resetPoints();

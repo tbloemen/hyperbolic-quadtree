@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { colors } from "./colors";
+import { drawGeodesic, geodesic } from "./points";
 
 class HCell {
   level: number;
@@ -83,20 +84,78 @@ class HCell {
   }
 }
 
+class SteinerPoint {
+  point: THREE.Vector3;
+  connected_points: THREE.Vector3[];
+  closest_point: THREE.Vector3 | null = null;
+
+  constructor(cell: THREE.Box3, points: THREE.Vector3[]) {
+    this.connected_points = points;
+    this.point = new THREE.Vector3(
+      (cell.min.x + cell.max.x) / 2,
+      Math.sqrt(cell.min.y * cell.max.y),
+      0,
+    );
+
+    var minDistance = Number.MAX_SAFE_INTEGER;
+    for (const point of points) {
+      const distance = geodesic(this.point, point);
+      if (distance < minDistance) {
+        this.closest_point = point;
+        minDistance = distance;
+      }
+    }
+  }
+
+  insert(p: THREE.Vector3): boolean {
+    if (!this.intersectsCyl(p.x)) return false;
+    this.connected_points.push(p);
+    if (!this.closest_point) {
+      this.closest_point = p;
+    } else {
+      if (geodesic(this.point, p) < geodesic(this.point, this.closest_point)) {
+        this.closest_point = p;
+      }
+    }
+    return true;
+  }
+
+  intersectsCyl(x0: number): boolean {
+    // triangle rendered from x0, with angel pi/2 rad.
+    if (this.point.y <= 0) return false;
+    return (
+      this.point.x >= x0 - this.point.y && this.point.x <= x0 + this.point.y
+    );
+  }
+
+  render(scene: THREE.Scene) {
+    // if (this.connected_points.length == 1) return;
+    for (const point of this.connected_points) {
+      const line = drawGeodesic(this.point, point);
+      scene.add(line);
+    }
+  }
+}
+
 class HQuadTree {
   cell: HCell;
   point: THREE.Vector3 | null = null;
   children: HQuadTree[] = [];
+  parent: HQuadTree | null;
+  steinerPoint: SteinerPoint;
   private boxMesh?: THREE.Mesh;
   private boxHelper?: THREE.Box3Helper;
 
-  constructor(cell: HCell) {
+  constructor(cell: HCell, parent: HQuadTree | null) {
     this.cell = cell;
+    this.parent = parent;
+    this.steinerPoint = new SteinerPoint(cell.box, []);
   }
 
   insert(p: THREE.Vector3): boolean {
     if (!this.cell.contains(p)) return false;
     // point can be inserted in this quadtree.
+    // this.steinerPoint.insert(p);
     if (this.children.length == 0) {
       if (this.point === null) {
         this.point = p;
@@ -127,20 +186,32 @@ class HQuadTree {
     return false;
   }
 
+  contains(p: THREE.Vector3): boolean {
+    return this.allPoints().includes(p);
+  }
+
   allPoints(): THREE.Vector3[] {
     var result: THREE.Vector3[] = [];
     for (const child of this.children) {
       result = result.concat(child.allPoints());
     }
-    if (this.point) {
-      result.push(this.point);
+    if (this.point) result.push(this.point);
+
+    return result;
+  }
+
+  allQuadtreesWithPoints(): HQuadTree[] {
+    var result: HQuadTree[] = [];
+    for (const tree of this.children) {
+      result = result.concat(tree.allQuadtreesWithPoints());
     }
+    if (this.point) result.push(this);
     return result;
   }
 
   subdivide(): void {
     const subCells = this.cell.split();
-    this.children = subCells.map((c) => new HQuadTree(c));
+    this.children = subCells.map((c) => new HQuadTree(c, this));
     if (this.point) {
       const old = this.point;
       this.point = null;
@@ -181,6 +252,8 @@ class HQuadTree {
       this.removeFromScene(scene);
     }
 
+    this.steinerPoint.render(scene);
+
     for (const child of this.children) {
       child.render(scene, rootLevel, opacity);
     }
@@ -210,7 +283,7 @@ export class DynamicHQuadTree {
   constructor(points: THREE.Vector3[], scene: THREE.Scene) {
     this.scene = scene;
     const cell = this.defineRootHCell(points);
-    this.root = new HQuadTree(cell);
+    this.root = new HQuadTree(cell, null);
     for (const point of points) {
       this.root.insert(point);
     }
@@ -222,7 +295,7 @@ export class DynamicHQuadTree {
       console.log(allPoints);
       allPoints.push(p);
       this.root.removeFromScene(this.scene, true);
-      this.root = new HQuadTree(this.defineRootHCell(allPoints));
+      this.root = new HQuadTree(this.defineRootHCell(allPoints), null);
       for (const point of allPoints) {
         this.root.insert(point);
       }
@@ -267,9 +340,56 @@ export class DynamicHQuadTree {
     return new HCell(box, level);
   }
 
-  render(scene: THREE.Scene, opacity: number = 0.5) {
-    this.root.render(scene, this.root.cell.level, opacity);
+  render(opacity: number = 0.5) {
+    this.root.render(this.scene, this.root.cell.level, opacity);
   }
+
+  renderSteiner() {
+    // for consecutive points p1, p2
+    // find the most constrained cell that contains both p1 and p2
+    const allTrees = this.root.allQuadtreesWithPoints();
+    // console.log(allTrees);
+    for (var i = 0; i < allTrees.length - 1; i++) {
+      const tree1 = allTrees[i];
+      const tree2 = allTrees[i + 1];
+      const p1 = tree1.point;
+      const p2 = tree2.point;
+      if (!p1 || !p2) return;
+      console.log(p1, p2);
+      console.log(tree1.cell.level, tree2.cell.level);
+      const c = lowestCommonTree(tree1, p1, p2);
+      console.log(c.cell.level);
+      // Fix diameter ratio to be 1, so 1 split is enough
+      const child_e = c.children;
+      for (const child of child_e) {
+        child.steinerPoint.insert(p1);
+        child.steinerPoint.insert(p2);
+      }
+      if (c.parent) {
+        const cPrime = c.parent;
+        for (const child of cPrime.children) {
+          child.steinerPoint.insert(p1);
+          child.steinerPoint.insert(p2);
+        }
+      }
+    }
+  }
+}
+
+function lowestCommonTree(
+  tree1: HQuadTree,
+  p1: THREE.Vector3,
+  p2: THREE.Vector3,
+): HQuadTree {
+  var parentCell = tree1;
+  var containsPoints = false;
+  while (!containsPoints) {
+    if (!parentCell.parent)
+      throw new Error("Two points don't have a common parent");
+    parentCell = parentCell.parent;
+    containsPoints = parentCell.contains(p1) && parentCell.contains(p2);
+  }
+  return parentCell;
 }
 
 function isApprox(p1: THREE.Vector3, p2: THREE.Vector3): boolean {

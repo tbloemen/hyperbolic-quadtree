@@ -20,6 +20,11 @@ export function initPoints(
   return points;
 }
 
+export function geodesic(p1: THREE.Vector3, p2: THREE.Vector3) {
+  const dist = 2 * Math.asinh(p1.distanceTo(p2) / (2 * Math.sqrt(p1.y * p2.y)));
+  return dist;
+}
+
 export function drawGeodesic(
   p1: THREE.Vector3,
   p2: THREE.Vector3,
