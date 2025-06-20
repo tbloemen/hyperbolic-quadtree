@@ -40,7 +40,7 @@ let geometry: THREE.BufferGeometry;
 
 const material = new THREE.PointsMaterial({
   color: white,
-  size: 4,
+  size: 8,
   map: new THREE.TextureLoader().load("/circle.png"),
 });
 
